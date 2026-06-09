@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Self-Hosted MQTT Broker — Built From Scratch</title>
+<meta name="description" content="An original from-scratch build of a self-hosted MQTT broker for IoT devices, with a Postgres device registry, wired together in Docker." />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<style>
+  :root{
+    --accent:#16a34a; --accent-soft:#e7f7ec; --ink:#16201f; --muted:#5d6b69;
+    --line:#dfe5e3; --bg:#fbfcfb; --card:#ffffff;
+    --serif:'Fraunces',Georgia,serif; --sans:'Inter',system-ui,sans-serif; --mono:'JetBrains Mono',monospace;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);line-height:1.65;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:860px;margin:0 auto;padding:0 28px}
+  a{color:var(--accent);text-decoration:none}
+  a:hover{text-decoration:underline}
+  code{font-family:var(--mono);font-size:.86em;background:var(--accent-soft);padding:.1em .4em;border-radius:4px;color:#0f7a37}
+  h1,h2,h3{font-family:var(--serif);font-weight:500;line-height:1.15;letter-spacing:-.01em}
+  /* Header */
+  header.hero{padding:88px 0 56px;border-bottom:1px solid var(--line)}
+  .eyebrow{font-family:var(--mono);font-size:.74rem;letter-spacing:.18em;text-transform:uppercase;color:var(--accent);margin:0 0 22px}
+  h1{font-size:clamp(2.6rem,6vw,4.1rem);margin:0 0 18px}
+  .lede{font-size:1.22rem;color:var(--muted);max-width:62ch;margin:0 0 28px}
+  .meta{display:flex;flex-wrap:wrap;gap:10px;font-size:.82rem}
+  .chip{font-family:var(--mono);font-size:.72rem;letter-spacing:.04em;border:1px solid var(--line);border-radius:999px;padding:5px 12px;color:var(--muted);background:var(--card)}
+  /* Sections */
+  section{padding:54px 0;border-bottom:1px solid var(--line)}
+  .kicker{font-family:var(--mono);font-size:.74rem;letter-spacing:.16em;text-transform:uppercase;color:var(--accent);margin:0 0 14px}
+  h2{font-size:clamp(1.7rem,3.4vw,2.3rem);margin:0 0 20px}
+  h3{font-size:1.2rem;margin:0 0 6px}
+  p{margin:0 0 18px;max-width:68ch}
+  .muted{color:var(--muted)}
+  /* Stack grid */
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px;margin-top:8px}
+  .tool{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:20px}
+  .tool .t{font-family:var(--mono);font-size:.78rem;color:var(--accent);letter-spacing:.04em;margin-bottom:8px}
+  .tool h3{font-size:1.05rem;font-family:var(--sans);font-weight:600;margin-bottom:6px}
+  .tool p{font-size:.92rem;color:var(--muted);margin:0}
+  /* Pipeline / modules */
+  ol.flow{counter-reset:s;list-style:none;padding:0;margin:24px 0 0}
+  ol.flow li{position:relative;padding:18px 0 18px 56px;border-top:1px solid var(--line)}
+  ol.flow li:before{counter-increment:s;content:counter(s,decimal-leading-zero);position:absolute;left:0;top:18px;font-family:var(--mono);font-size:.8rem;color:var(--accent);border:1px solid var(--line);border-radius:8px;width:38px;height:38px;display:grid;place-items:center;background:var(--card)}
+  ol.flow li h3{font-family:var(--sans);font-size:1.02rem;font-weight:600;margin:0 0 4px}
+  ol.flow li p{margin:0;font-size:.93rem;color:var(--muted)}
+  .tag{display:inline-block;font-family:var(--mono);font-size:.68rem;padding:2px 7px;border-radius:5px;margin-left:8px;vertical-align:middle}
+  .tag.on{background:#e6f7ec;color:#1c7a43}
+  .tag.off{background:#fdecea;color:#b23b2c}
+  /* Callout */
+  .callout{background:var(--accent-soft);border:1px solid #c7ecd2;border-radius:14px;padding:24px 26px;margin-top:8px}
+  .callout p:last-child{margin:0}
+  /* Reflection list */
+  ul.learn{list-style:none;padding:0;margin:8px 0 0}
+  ul.learn li{padding:14px 0 14px 30px;border-top:1px solid var(--line);position:relative;color:var(--muted);max-width:68ch}
+  ul.learn li:before{content:"→";position:absolute;left:0;color:var(--accent);font-family:var(--mono)}
+  ul.learn li b{color:var(--ink);font-weight:600}
+  /* Footer */
+  footer{padding:48px 0 80px}
+  .credit{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:26px}
+  .credit .k{font-family:var(--mono);font-size:.72rem;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin-bottom:10px}
+  footer .fine{font-size:.8rem;color:var(--muted);margin-top:22px;text-align:center}
+</style>
+</head>
+<body>
+<header class="hero">
+  <div class="wrap">
+    <p class="eyebrow">From-Scratch Build · Self-Hosted Messaging</p>
+    <h1>Self-Hosted MQTT Broker</h1>
+    <p class="lede">A private message bus for IoT devices — built from scratch with the EMQX broker and a Postgres device registry, wired together in Docker. The plumbing that lets dozens of sensors and actuators talk to each other without ever touching the cloud.</p>
+    <div class="meta">
+      <span class="chip">MQTT</span><span class="chip">EMQX</span><span class="chip">PostgreSQL</span>
+      <span class="chip">Docker Compose</span><span class="chip">Pub / Sub</span>
+    </div>
+  </div>
+</header>
+
+<section>
+  <div class="wrap">
+    <p class="kicker">What it is</p>
+    <h2>One broker, many devices</h2>
+    <p><b>MQTT</b> is a lightweight publish/subscribe protocol built for machines that have little power and flaky connections — exactly the situation a room full of sensors finds itself in. Instead of every device calling every other device directly, they all connect to a single <b>broker</b>. A device <i>publishes</i> a message to a named <b>topic</b> (say <code>floor2/lab/temp</code>); any device <i>subscribed</i> to that topic receives it. Publishers and subscribers never need to know each other exist.</p>
+    <p>I built this to understand the backbone of almost every IoT system. The broker here is <b>EMQX</b>, a production-grade MQTT server, paired with a <b>PostgreSQL</b> database that acts as a registry — a single source of truth describing which devices exist, what they can do, and which topics carry their state and commands.</p>
+    <div class="callout">
+      <p><b>The core idea I wanted to learn:</b> a good messaging layer decouples everything. Add a new sensor and it just starts publishing; nothing else has to change. The broker handles fan-out, the registry handles identity, and the devices stay blissfully ignorant of one another.</p>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <p class="kicker">The stack</p>
+    <h2>Tools under the hood</h2>
+    <p class="muted">Two containers do all the work. Here is what each one actually contributes.</p>
+    <div class="grid">
+      <div class="tool"><div class="t">broker</div><h3>EMQX 5</h3><p>A scalable MQTT broker. It accepts connections, routes published messages to every matching subscriber, and ships a web dashboard for watching live traffic.</p></div>
+      <div class="tool"><div class="t">transport</div><h3>MQTT + TLS</h3><p>Plain MQTT on port 1883 for the LAN, and an encrypted TLS listener on 8883 so devices crossing untrusted networks stay private.</p></div>
+      <div class="tool"><div class="t">registry</div><h3>PostgreSQL 16</h3><p>The catalogue of devices, capabilities and topic bindings. It answers "what is this device and how do I talk to it?" — something MQTT itself never stores.</p></div>
+      <div class="tool"><div class="t">schema</div><h3>init.sql</h3><p>Seeds the database on first boot: tables for devices, capabilities, routing rules, topic bindings and last-known state.</p></div>
+      <div class="tool"><div class="t">packaging</div><h3>Docker Compose</h3><p>Brings up the broker and the database on a shared bridge network with a single command, ports and secrets driven by environment variables.</p></div>
+      <div class="tool"><div class="t">dashboard</div><h3>EMQX Console</h3><p>A built-in web UI on port 18083 to inspect connected clients, subscriptions and message rates in real time.</p></div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <p class="kicker">The registry</p>
+    <h2>What the database remembers</h2>
+    <p>MQTT is deliberately stateless — it forgets a message the moment it's delivered. To run a real fleet you need somewhere to record what exists. My Postgres schema models the device world in a handful of tables:</p>
+    <ol class="flow">
+      <li><h3>device</h3><p>Every physical thing — its name, area, floor, kind and an <code>online</code> flag, plus a free-form JSON <code>meta</code> field for anything unusual.</p></li>
+      <li><h3>capability</h3><p>A named thing a device can do (e.g. "read temperature", "toggle relay"), each with a JSON schema describing its payload.</p></li>
+      <li><h3>device_capability</h3><p>The join table — which devices have which capabilities. A many-to-many map of the fleet's abilities.</p></li>
+      <li><h3>topic_binding</h3><p>For each device, the exact <code>state_topic</code> it publishes to and the <code>command_topic</code> it listens on. This is the bridge between the registry and live MQTT traffic.</p></li>
+      <li><h3>routing_rule</h3><p>Higher-level intent: "send this capability to any device matching this selector," with a strategy and priority — the seed of orchestration.</p></li>
+      <li><h3>device_state</h3><p>The last-seen timestamp and last-known JSON state per device, so the system has a memory even when a device goes quiet.</p></li>
+    </ol>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <p class="kicker">How it runs</p>
+    <h2>From compose-up to first message</h2>
+    <p>The whole stack is configuration, not code. Bringing it to life is a short sequence:</p>
+    <ul class="learn">
+      <li><b>Set the environment:</b> ports, the database name/user/password and the dashboard admin password all come from environment variables, so no secrets live in the compose file.</li>
+      <li><b>Bring it up:</b> one <code>docker compose up</code> starts EMQX and Postgres on a shared <code>labnet</code> bridge; the schema seeds itself from <code>init.sql</code> on first boot.</li>
+      <li><b>Publish and subscribe:</b> a sensor publishes to its <code>state_topic</code>; anything subscribed receives it instantly. Commands flow back down the device's <code>command_topic</code>.</li>
+      <li><b>Watch it live:</b> the EMQX dashboard shows every connected client and subscription, which made debugging the message flow far easier than reading logs.</li>
+    </ul>
+    <p class="muted" style="margin-top:18px">In my rebuild I focused on getting the broker and registry talking cleanly — a device row in Postgres, a matching topic binding, and a message arriving on the right subscription.</p>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <p class="kicker">Reflection</p>
+    <h2>What rebuilding it taught me</h2>
+    <ul class="learn">
+      <li><b>Pub/sub is the whole trick.</b> Once devices talk through topics instead of addresses, adding the hundredth sensor is exactly as easy as adding the first.</li>
+      <li><b>The broker is stateless on purpose.</b> Keeping the registry in a separate database — not the broker — keeps each tool doing one job well.</li>
+      <li><b>Topics are an API.</b> Designing a clean topic hierarchy (<code>area/device/capability</code>) is as important as designing a REST URL scheme.</li>
+      <li><b>Compose plus env-vars is a real deployment.</b> No build step, no hand-installed services — the entire system is two images and a handful of variables.</li>
+    </ul>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <div class="credit">
+      <div class="k">About this build</div>
+      <p style="margin:0">An original, from-scratch build by <b>Andrea</b> — written to learn how the publish/subscribe messaging behind IoT systems actually works, from broker to device registry. Plain HTML/CSS, deployed on GitHub Pages.</p>
+    </div>
+    <p class="fine">Built from scratch by Andrea · one of an ongoing series of learning builds.</p>
+  </div>
+</footer>
+</body>
+</html>
